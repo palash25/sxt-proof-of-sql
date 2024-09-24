@@ -144,12 +144,20 @@ mod pairings;
 mod transpose;
 
 mod dynamic_build_vmv_state;
+#[cfg(not(feature = "blitzar"))]
 mod dynamic_dory_commitment_helper_cpu;
+#[cfg(feature = "blitzar")]
+mod dynamic_dory_commitment_helper_gpu;
 mod dynamic_dory_helper;
 mod dynamic_dory_standard_basis_helper;
 mod dynamic_dory_structure;
+#[cfg(not(feature = "blitzar"))]
 use dynamic_dory_commitment_helper_cpu::compute_dynamic_dory_commitments;
+#[cfg(feature = "blitzar")]
+use dynamic_dory_commitment_helper_gpu::compute_dynamic_dory_commitments;
 mod dynamic_dory_commitment;
+#[cfg(test)]
+mod dynamic_dory_compute_commitments_test;
 mod dynamic_dory_commitment_evaluation_proof;
 pub use dynamic_dory_commitment::DynamicDoryCommitment;
 #[cfg(test)]
