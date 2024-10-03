@@ -9,6 +9,7 @@ use crate::{
 use ark_ec::CurveGroup;
 use ark_std::ops::Mul;
 use blitzar::compute::ElementP2;
+use tracing::{span, Level};
 
 const BYTE_SIZE: u32 = 8;
 
@@ -147,6 +148,11 @@ fn cumulative_byte_length_table(bit_table: &[u32]) -> Vec<usize> {
 /// # Returns
 ///
 /// A vector containing the modified sub commits to be used by the dynamic Dory commitment computation.
+#[tracing::instrument(
+name = "modify_commits",
+level = "debug",
+skip_all
+)]
 fn modify_commits(
     all_sub_commits: &Vec<G1Affine>,
     committable_columns: &[CommittableColumn],
@@ -216,6 +222,7 @@ fn compute_dory_commitment_impl_gpu(
     let num_scalar_columns = single_packed_byte_with_offset_size * max_height;
     let mut scalars = vec![0u8; num_scalar_rows * num_scalar_columns];
 
+    let span = span!(Level::INFO, "populate scalars array").entered();
     // Populate the scalars array.
     for scalar_row in 0..num_scalar_rows {
         // Get a mutable slice of the scalars array that represents one full row of the scalars array.
@@ -302,6 +309,7 @@ fn compute_dory_commitment_impl_gpu(
             }
         }
     }
+    span.exit();
 
     // Initialize sub commits.
     let mut sub_commits_from_blitzar =
@@ -327,23 +335,20 @@ fn compute_dory_commitment_impl_gpu(
         "Invalid number of sub commits"
     );
     let num_commits = sub_commits.len() / committable_columns.len();
-    println!("Dynamic Dory Commitment");
-    println!("   num_commits: {}", num_commits);
-    println!("   committable_columns.len(): {}", committable_columns.len());
-    (0..committable_columns.len())
+
+    let span = span!(Level::INFO, "multi_pairing").entered();
+    let ddc: Vec<DynamicDoryCommitment> = (0..committable_columns.len())
         .map(|i| {
             let sub_slice = sub_commits[i..]
                 .iter()
                 .step_by(committable_columns.len())
                 .take(num_commits);
-            let end = sub_slice.len();
-
-            println!("      commitable_column[{}]", i);
-            println!("      sub_slice.len(): {}", end);
-            
-            DynamicDoryCommitment(pairings::multi_pairing(sub_slice, &Gamma_2[..end]))
+            DynamicDoryCommitment(pairings::multi_pairing(sub_slice, &Gamma_2[..num_commits]))
         })
-        .collect()
+        .collect();
+    span.exit();
+
+    ddc
 }
 
 pub(super) fn compute_dynamic_dory_commitments(
