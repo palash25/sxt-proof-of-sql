@@ -327,6 +327,9 @@ fn compute_dory_commitment_impl_gpu(
         "Invalid number of sub commits"
     );
     let num_commits = sub_commits.len() / committable_columns.len();
+    println!("Dynamic Dory Commitment");
+    println!("   num_commits: {}", num_commits);
+    println!("   committable_columns.len(): {}", committable_columns.len());
     (0..committable_columns.len())
         .map(|i| {
             let sub_slice = sub_commits[i..]
@@ -334,6 +337,10 @@ fn compute_dory_commitment_impl_gpu(
                 .step_by(committable_columns.len())
                 .take(num_commits);
             let end = sub_slice.len();
+
+            println!("      commitable_column[{}]", i);
+            println!("      sub_slice.len(): {}", end);
+            
             DynamicDoryCommitment(pairings::multi_pairing(sub_slice, &Gamma_2[..end]))
         })
         .collect()
