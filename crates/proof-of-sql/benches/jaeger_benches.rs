@@ -61,7 +61,7 @@ fn main() {
 
             for _ in 0..3 {
                 for (title, query, columns) in QUERIES {
-                    jaeger_scaffold::<DoryEvaluationProof>(
+                    jaeger_scaffold::<DynamicDoryEvaluationProof>(
                         title,
                         query,
                         columns,
