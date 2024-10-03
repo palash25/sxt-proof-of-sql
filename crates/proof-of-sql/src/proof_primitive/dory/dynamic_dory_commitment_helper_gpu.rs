@@ -333,7 +333,8 @@ fn compute_dory_commitment_impl_gpu(
                 .iter()
                 .step_by(committable_columns.len())
                 .take(num_commits);
-            DynamicDoryCommitment(pairings::multi_pairing(sub_slice, &Gamma_2[..num_commits]))
+            let end = sub_slice.len();
+            DynamicDoryCommitment(pairings::multi_pairing(sub_slice, &Gamma_2[..end]))
         })
         .collect()
 }
