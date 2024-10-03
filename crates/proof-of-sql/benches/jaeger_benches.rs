@@ -52,7 +52,7 @@ fn main() {
         #[cfg(feature = "test")]
         "Dory" => {
             // Run 3 times to ensure that warm-up of the GPU has occurred.
-            let public_parameters = PublicParameters::test_rand(10, &mut test_rng());
+            let public_parameters = PublicParameters::test_rand(12, &mut test_rng());
             let prover_setup = ProverSetup::from(&public_parameters);
             let verifier_setup = VerifierSetup::from(&public_parameters);
 
