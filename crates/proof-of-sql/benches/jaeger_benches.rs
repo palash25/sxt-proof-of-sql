@@ -19,7 +19,8 @@ use crate::scaffold::querys::QUERIES;
 use scaffold::jaeger_scaffold;
 use std::env;
 
-const SIZE: usize = 1_000_000;
+/// TODO: add docs
+const SIZE: usize = 524_287; //1_000_000;
 
 fn main() {
     init_backend();
@@ -52,7 +53,7 @@ fn main() {
         #[cfg(feature = "test")]
         "Dory" => {
             // Run 3 times to ensure that warm-up of the GPU has occurred.
-            let public_parameters = PublicParameters::test_rand(11, &mut test_rng());
+            let public_parameters = PublicParameters::test_rand(10, &mut test_rng());
             let prover_setup = ProverSetup::from(&public_parameters);
             let verifier_setup = VerifierSetup::from(&public_parameters);
 
