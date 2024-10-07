@@ -9,6 +9,8 @@ use crate::{
 use ark_ec::CurveGroup;
 use ark_std::ops::Mul;
 use blitzar::compute::ElementP2;
+use rayon::prelude::*;
+use std::sync::Mutex;
 use tracing::{span, Level};
 
 const BYTE_SIZE: u32 = 8;
@@ -174,14 +176,14 @@ fn modify_commits(
     }
 
     signed_sub_commits
-        .into_iter()
-        .zip(offset_sub_commits)
+        .into_par_iter()
+        .zip(offset_sub_commits.into_par_iter())
         .map(|(signed, offset)| (signed + offset).into())
         .collect()
 }
 
 #[tracing::instrument(
-    name = "compute_dory_commitment_vlen_impl_gpu (gpu)",
+    name = "compute_dory_commitment_impl_gpu (vlen_msm gpu)",
     level = "debug",
     skip_all
 )]
@@ -216,12 +218,14 @@ fn compute_dory_commitment_impl_gpu(
     // Create scalars array. Note, scalars need to be stored in a column-major order.
     let num_scalar_rows = max_width;
     let num_scalar_columns = single_packed_byte_with_offset_size * max_height;
-    let mut scalars = vec![0u8; num_scalar_rows * num_scalar_columns];
+    let scalars = vec![0u8; num_scalar_rows * num_scalar_columns];
 
-    let span = span!(Level::INFO, "populate scalars array").entered();
     // Populate the scalars array.
-    for scalar_row in 0..num_scalar_rows {
+    let span = span!(Level::INFO, "populate_scalars_array").entered();
+    let scalars = Mutex::new(scalars);
+    (0..num_scalar_rows).into_par_iter().for_each(|scalar_row| {
         // Get a mutable slice of the scalars array that represents one full row of the scalars array.
+        let mut scalars = scalars.lock().unwrap();
         let scalar_row_slice =
             &mut scalars[scalar_row * num_scalar_columns..(scalar_row + 1) * num_scalar_columns];
 
@@ -304,7 +308,7 @@ fn compute_dory_commitment_impl_gpu(
                 }
             }
         }
-    }
+    });
     span.exit();
 
     // Initialize sub commits.
@@ -313,11 +317,12 @@ fn compute_dory_commitment_impl_gpu(
 
     // Get sub commits from Blitzar's vlen_msm algorithm.
     if !bit_table.is_empty() {
+        let scalars_guard = scalars.lock().unwrap();
         setup.blitzar_vlen_msm(
             &mut sub_commits_from_blitzar,
             &bit_table,
             &length_table,
-            scalars.as_slice(),
+            scalars_guard.as_slice(),
         );
     }
 
@@ -334,6 +339,7 @@ fn compute_dory_commitment_impl_gpu(
 
     let span = span!(Level::INFO, "multi_pairing").entered();
     let ddc: Vec<DynamicDoryCommitment> = (0..committable_columns.len())
+        .into_par_iter()
         .map(|i| {
             let sub_slice = sub_commits[i..]
                 .iter()
