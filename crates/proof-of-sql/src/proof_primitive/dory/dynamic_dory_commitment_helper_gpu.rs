@@ -148,11 +148,7 @@ fn cumulative_byte_length_table(bit_table: &[u32]) -> Vec<usize> {
 /// # Returns
 ///
 /// A vector containing the modified sub commits to be used by the dynamic Dory commitment computation.
-#[tracing::instrument(
-name = "modify_commits",
-level = "debug",
-skip_all
-)]
+#[tracing::instrument(name = "modify_commits", level = "debug", skip_all)]
 fn modify_commits(
     all_sub_commits: &Vec<G1Affine>,
     committable_columns: &[CommittableColumn],
