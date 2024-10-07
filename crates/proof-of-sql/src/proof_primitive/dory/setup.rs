@@ -99,7 +99,7 @@ impl<'a> ProverSetup<'a> {
         scalars: &[u8],
     ) {
         self.blitzar_handle
-            .vlen_msm(res, output_bit_table, output_lengths, scalars)
+            .vlen_msm(res, output_bit_table, output_lengths, scalars);
     }
 }
 

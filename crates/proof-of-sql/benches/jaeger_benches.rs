@@ -81,7 +81,7 @@ fn main() {
             let verifier_setup = DoryVerifierPublicSetup::new(&vs, 10);
 
             for _ in 0..3 {
-                for (title, query, columns) in QUERIES.iter() {
+                for (title, query, columns) in QUERIES {
                     jaeger_scaffold::<DoryEvaluationProof>(
                         title,
                         query,

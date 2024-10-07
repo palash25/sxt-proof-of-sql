@@ -92,7 +92,7 @@ fn populate_single_bit_array_with_offsets(
 fn populate_bit_table(single_bit_table_entry: &[u32], max_height: usize) -> Vec<u32> {
     single_bit_table_entry
         .iter()
-        .cloned()
+        .copied()
         .cycle()
         .take(single_bit_table_entry.len() * max_height)
         .collect()
@@ -109,6 +109,10 @@ fn populate_bit_table(single_bit_table_entry: &[u32], max_height: usize) -> Vec<
 ///
 /// A vector containing the length of entries from the dynamic Dory structure that
 /// are being used in the commitment computation.
+///
+/// # Panics
+///
+/// Panics if `bit_table_len` is not a multiple of `single_bit_table_entry_len`.
 fn populate_length_table(bit_table_len: usize, single_bit_table_entry_len: usize) -> Vec<u32> {
     assert!(
         bit_table_len % single_bit_table_entry_len == 0,
@@ -253,9 +257,15 @@ fn compute_dory_commitment_impl_gpu(
 
                         let column = &committable_columns[i];
                         match column {
-                            CommittableColumn::Scalar(column) => {
+                            CommittableColumn::Boolean(column) => {
                                 scalar_row_slice[start..end]
                                     .copy_from_slice(&column[index].offset_to_bytes());
+                            }
+                            CommittableColumn::TinyInt(column) => {
+                                scalar_row_slice[start..end]
+                                    .copy_from_slice(&column[index].offset_to_bytes());
+
+                                scalar_row_slice[offset_idx] = 1_u8;
                             }
                             CommittableColumn::SmallInt(column) => {
                                 scalar_row_slice[start..end]
@@ -269,7 +279,8 @@ fn compute_dory_commitment_impl_gpu(
 
                                 scalar_row_slice[offset_idx] = 1_u8;
                             }
-                            CommittableColumn::BigInt(column) => {
+                            CommittableColumn::BigInt(column)
+                            | CommittableColumn::TimestampTZ(_, _, column) => {
                                 scalar_row_slice[start..end]
                                     .copy_from_slice(&column[index].offset_to_bytes());
 
@@ -281,28 +292,13 @@ fn compute_dory_commitment_impl_gpu(
 
                                 scalar_row_slice[offset_idx] = 1_u8;
                             }
-                            CommittableColumn::Decimal75(_, _, column) => {
+                            CommittableColumn::Scalar(column)
+                            | CommittableColumn::Decimal75(_, _, column)
+                            | CommittableColumn::VarChar(column) => {
                                 scalar_row_slice[start..end]
                                     .copy_from_slice(&column[index].offset_to_bytes());
                             }
-                            CommittableColumn::VarChar(column) => {
-                                scalar_row_slice[start..end]
-                                    .copy_from_slice(&column[index].offset_to_bytes());
-                            }
-                            CommittableColumn::Boolean(column) => {
-                                scalar_row_slice[start..end]
-                                    .copy_from_slice(&column[index].offset_to_bytes());
-                            }
-                            CommittableColumn::TimestampTZ(_, _, column) => {
-                                scalar_row_slice[start..end]
-                                    .copy_from_slice(&column[index].offset_to_bytes());
-
-                                scalar_row_slice[offset_idx] = 1_u8;
-                            }
-                            CommittableColumn::RangeCheckWord(column) => {
-                                scalar_row_slice[start..end]
-                                    .copy_from_slice(&column[index].offset_to_bytes());
-                            }
+                            CommittableColumn::RangeCheckWord(_) => todo!(),
                         }
                     }
                 }
@@ -382,10 +378,12 @@ mod tests {
     #[test]
     fn we_can_get_a_single_packed_bit_size_with_mixed_columns() {
         let committable_columns = [
+            CommittableColumn::Boolean(&[true, false]),
+            CommittableColumn::TinyInt(&[1, 2, 3]),
             CommittableColumn::SmallInt(&[1]),
             CommittableColumn::Int(&[1, 2]),
-            CommittableColumn::BigInt(&[1, 2, 3]),
             CommittableColumn::Int128(&[1, 2, 3, 4]),
+            CommittableColumn::BigInt(&[1, 2, 3]),
             CommittableColumn::Decimal75(
                 Precision::new(1).unwrap(),
                 0,
@@ -399,12 +397,11 @@ mod tests {
             ),
             CommittableColumn::Scalar(vec![[1, 0, 0, 0], [2, 0, 0, 0], [3, 0, 0, 0], [4, 0, 0, 0]]),
             CommittableColumn::VarChar(vec![[1, 0, 0, 0], [2, 0, 0, 0], [3, 0, 0, 0]]),
-            CommittableColumn::Boolean(&[true, false]),
             CommittableColumn::TimestampTZ(PoSQLTimeUnit::Second, PoSQLTimeZone::Utc, &[1]),
         ];
 
         let single_packed_byte_size = single_packed_byte_size(&committable_columns);
-        let full_byte_size = (16 + 32 + 64 + 128 + 256 + 256 + 256 + 8 + 64) / 8;
+        let full_byte_size = (8 + 16 + 32 + 64 + 128 + 256 + 256 + 256 + 8 + 64) / 8;
         assert_eq!(single_packed_byte_size, full_byte_size);
     }
 
@@ -422,6 +419,7 @@ mod tests {
     #[test]
     fn we_can_get_max_matrix_size_mixed_columns() {
         let committable_columns = [
+            CommittableColumn::TinyInt(&[0]),
             CommittableColumn::SmallInt(&[0, 1]),
             CommittableColumn::Int(&[0, 1, 2]),
             CommittableColumn::BigInt(&[0, 1, 2, 3]),
@@ -473,6 +471,7 @@ mod tests {
     #[test]
     fn we_can_get_max_matrix_size_mixed_columns_with_offset() {
         let committable_columns = [
+            CommittableColumn::TinyInt(&[0]),
             CommittableColumn::SmallInt(&[0, 1]),
             CommittableColumn::Int(&[0, 1, 2]),
             CommittableColumn::BigInt(&[0, 1, 2, 3]),
@@ -513,6 +512,7 @@ mod tests {
     #[test]
     fn we_can_populate_single_bit_array_with_offsets() {
         let committable_columns = [
+            CommittableColumn::TinyInt(&[0]),
             CommittableColumn::SmallInt(&[0, 1]),
             CommittableColumn::Int(&[0, 1, 2]),
             CommittableColumn::BigInt(&[0, 1, 2, 3]),
@@ -551,13 +551,14 @@ mod tests {
             populate_single_bit_array_with_offsets(&committable_columns, signed_offset_length);
         assert_eq!(
             single_bit_table_entry,
-            vec![16, 32, 64, 128, 256, 256, 256, 8, 64, 8, 8, 8, 8, 8, 8, 8, 8, 8]
+            vec![8, 16, 32, 64, 128, 256, 256, 256, 8, 64, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8]
         );
     }
 
     #[test]
     fn we_can_populate_a_bit_table() {
         let committable_columns = [
+            CommittableColumn::TinyInt(&[0]),
             CommittableColumn::SmallInt(&[0, 1]),
             CommittableColumn::Int(&[0, 1, 2]),
             CommittableColumn::BigInt(&[0, 1, 2, 3]),
@@ -599,10 +600,10 @@ mod tests {
         assert_eq!(
             bit_table,
             vec![
-                16, 32, 64, 128, 256, 256, 256, 8, 64, 8, 8, 8, 8, 8, 8, 8, 8, 8, 16, 32, 64, 128,
-                256, 256, 256, 8, 64, 8, 8, 8, 8, 8, 8, 8, 8, 8, 16, 32, 64, 128, 256, 256, 256, 8,
-                64, 8, 8, 8, 8, 8, 8, 8, 8, 8, 16, 32, 64, 128, 256, 256, 256, 8, 64, 8, 8, 8, 8,
-                8, 8, 8, 8, 8
+                8, 16, 32, 64, 128, 256, 256, 256, 8, 64, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 16, 32,
+                64, 128, 256, 256, 256, 8, 64, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 16, 32, 64, 128,
+                256, 256, 256, 8, 64, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 16, 32, 64, 128, 256, 256,
+                256, 8, 64, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8
             ]
         );
     }
