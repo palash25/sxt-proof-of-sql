@@ -4,6 +4,8 @@ use super::{
 };
 use alloc::vec::Vec;
 
+/// Builds a VMVProverState from the given parameters.
+#[tracing::instrument(name = "build_dynamic_vmv_prover_state", level = "debug", skip_all)]
 /// Builds a [`VMVProverState`] from the given parameters.
 pub(super) fn build_dynamic_vmv_prover_state(
     a: &[F],

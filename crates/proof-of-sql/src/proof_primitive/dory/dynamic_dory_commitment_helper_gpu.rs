@@ -181,7 +181,7 @@ fn modify_commits(
 }
 
 #[tracing::instrument(
-    name = "compute_dory_commitment_impl_gpu (gpu)",
+    name = "compute_dory_commitment_vlen_impl_gpu (gpu)",
     level = "debug",
     skip_all
 )]
